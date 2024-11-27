@@ -2,7 +2,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from ..database.mongodb import mongodb
 from ..database.cassandra import cassandra_db
-from ..database.dgraph import dgraph_db
+from ..services.dgraph_service import dgraph_service
 
 class AnalyticsService:
     @staticmethod
