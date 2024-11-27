@@ -50,7 +50,7 @@ A FastAPI-based application that provides sports analytics data using a multi-da
 
 ## Installation
 
-1. Clone the repository: 
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/your-repo/sports-analytics-api.git
