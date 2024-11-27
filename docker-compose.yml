@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=sports_analytics
+
+  cassandra:
+    image: cassandra:latest
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    environment:
+      - CASSANDRA_CLUSTER_NAME=sports_analytics_cluster
+      - CASSANDRA_DC=datacenter1
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  cassandra-init:
+    image: cassandra:latest
+    depends_on:
+      cassandra:
+        condition: service_healthy
+    command: >
+      /bin/bash -c '
+      echo "Waiting for Cassandra to be ready...";
+      sleep 30;
+      echo "Creating keyspace and tables...";
+      cqlsh cassandra -e "
+      CREATE KEYSPACE IF NOT EXISTS sports_analytics 
+      WITH replication = {\"class\": \"SimpleStrategy\", \"replication_factor\": 1};
+      
+      USE sports_analytics;
+      
+      CREATE TABLE IF NOT EXISTS gamedetails (
+        date date,
+        game_id uuid,
+        stage text,
+        team1_id uuid,
+        team1_name text,
+        team1_score int,
+        team2_id uuid,
+        team2_name text,
+        team2_score int,
+        highlight_video_link text,
+        PRIMARY KEY ((date), game_id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS teamgames (
+        team_id uuid,
+        date date,
+        game_id uuid,
+        opponent_team_id uuid,
+        opponent_team_name text,
+        team_score int,
+        opponent_score int,
+        highlight_video_link text,
+        PRIMARY KEY ((team_id), date, game_id)
+      );"'
+
+  dgraph-zero:
+    image: dgraph/dgraph:latest
+    volumes:
+      - dgraph_data:/dgraph
+    ports:
+      - "5080:5080"
+      - "6080:6080"
+    command: dgraph zero --my=dgraph-zero:5080
+
+  dgraph-alpha:
+    image: dgraph/dgraph:latest
+    volumes:
+      - dgraph_data:/dgraph
+    ports:
+      - "8080:8080"
+      - "9080:9080"
+    depends_on:
+      - dgraph-zero
+    command: dgraph alpha --my=dgraph-alpha:7080 --zero=dgraph-zero:5080 --security whitelist=0.0.0.0/0
+
+volumes:
+  mongodb_data:
+  cassandra_data:
+  dgraph_data: 
