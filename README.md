@@ -91,7 +91,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 1. Start the databases:
 
 ```bash
-docker compose up -d
+docker-compose up -d
 ```
 
 2. Wait for about 30 seconds for the databases to initialize.
