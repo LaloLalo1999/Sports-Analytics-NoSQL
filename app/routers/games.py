@@ -22,27 +22,23 @@ async def get_games(
             return games
 
         # If no games from SerpAPI, try to fetch from database
-        if date:
-            query = "SELECT * FROM gamedetails WHERE date = %s"
-            result = cassandra_db.session.execute(query, [date])
-        else:
-            today = datetime.now().date()
-            query = "SELECT * FROM gamedetails WHERE date = %s"
-            result = cassandra_db.session.execute(query, [today])
+        query_date = date if date else datetime.now().date()
+        query = "SELECT * FROM gamedetails WHERE date = ?"
+        result = cassandra_db.session.execute(query, [query_date])
 
         games = []
         for row in result:
             game = {
-                "game_id": str(row.game_id),
+                "game_id": row.game_id,  # UUID objects can be returned directly
                 "date": row.date,
                 "stage": row.stage,
-                "team1_id": str(row.team1_id),
+                "team1_id": row.team1_id,
                 "team1_name": row.team1_name,
                 "team1_score": row.team1_score,
-                "team2_id": str(row.team2_id),
+                "team2_id": row.team2_id,
                 "team2_name": row.team2_name,
                 "team2_score": row.team2_score,
-                "highlight_video_link": row.highlight_video_link
+                "highlight_video_link": row.highlight_video_link or None
             }
             games.append(game)
         
@@ -71,7 +67,10 @@ async def get_game_highlights(game_id: str):
     """
     try:
         game_uuid = uuid.UUID(game_id)
-        query = "SELECT highlight_video_link FROM gamedetails WHERE game_id = %s ALLOW FILTERING"
+        # Use parameterized query with bind marker
+        query = cassandra_db.session.prepare(
+            "SELECT highlight_video_link FROM gamedetails WHERE game_id = ? ALLOW FILTERING"
+        )
         result = cassandra_db.session.execute(query, [game_uuid])
         row = result.one()
         if row:

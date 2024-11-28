@@ -1,10 +1,10 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import date
 from uuid import UUID
 
 class GameBase(BaseModel):
-    date: datetime
+    date: date
     stage: str
     team1_id: UUID
     team1_name: str
@@ -18,7 +18,7 @@ class GameCreate(GameBase):
     pass
 
 class GameUpdate(GameBase):
-    date: Optional[datetime] = None
+    date: Optional[date] = None
     stage: Optional[str] = None
     team1_score: Optional[int] = None
     team2_score: Optional[int] = None
