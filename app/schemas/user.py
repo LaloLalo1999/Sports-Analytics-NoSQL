@@ -1,37 +1,44 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
-from datetime import datetime
+from typing import Optional, List
+from bson import ObjectId
 
-class UserBase(BaseModel):
-    username: str
+class PyObjectId(str):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        elif isinstance(v, str):
+            return v
+        raise ValueError("Invalid ObjectId")
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-
-class UserCreate(UserBase):
-    password: str
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+    password: str = Field(..., min_length=6)
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=6)
 
-class NotificationBase(BaseModel):
-    message: str
-    date: datetime
-    read: bool = False
-
-class UserResponse(UserBase):
-    id: str
+class UserResponse(BaseModel):
+    id: PyObjectId = Field(alias="_id")
+    username: str
+    email: EmailStr
     favorite_teams: List[str] = []
-    favorite_players: List[str] = []
-    notifications: List[NotificationBase] = []
 
     class Config:
-        orm_mode = True
+        json_encoders = {
+            ObjectId: str
+        }
+        populate_by_name = True
+        arbitrary_types_allowed = True
 
 class Token(BaseModel):
     access_token: str
-    token_type: str = "bearer" 
+    token_type: str
+    user: UserResponse 

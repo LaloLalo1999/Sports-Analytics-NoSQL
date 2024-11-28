@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings
 from functools import lru_cache
 
 class Settings(BaseSettings):
@@ -17,9 +17,13 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "your-secret-key"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
+    # SerpAPI
+    SERPAPI_API_KEY: str
+
     class Config:
         env_file = ".env"
+        case_sensitive = True
 
 @lru_cache()
 def get_settings():

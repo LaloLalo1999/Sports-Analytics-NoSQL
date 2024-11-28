@@ -1,88 +1,82 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import List, Optional
-from datetime import datetime, timedelta
-from ..schemas.game import GameResponse, GameCreate, GameUpdate
+from fastapi import APIRouter, Query
+from typing import Optional
+from datetime import datetime, date
 from ..database.cassandra import cassandra_db
-from uuid import UUID
+from ..schemas.game import GameResponse
+from ..services.serpapi_service import serpapi_service
+import uuid
 
 router = APIRouter()
 
-@router.get("/", response_model=List[GameResponse])
+@router.get("/", response_model=list[GameResponse])
 async def get_games(
-    date: Optional[datetime] = None,
-    days: Optional[int] = Query(default=1, ge=1, le=30)
+    date: Optional[date] = Query(None, description="Filter games by date (YYYY-MM-DD)")
 ):
     """
-    Get games for a specific date or date range
+    Get games for a specific date
     """
-    if not date:
-        date = datetime.utcnow()
-    
-    end_date = date + timedelta(days=days)
-    
-    query = f"""
-        SELECT * FROM gamedetails 
-        WHERE date >= '{date.date()}' AND date < '{end_date.date()}'
-    """
-    
-    result = cassandra_db.session.execute(query)
-    return list(result)
+    try:
+        # First try to fetch from SerpAPI
+        games = await serpapi_service.fetch_games(date)
+        if games:
+            return games
 
-@router.get("/{game_id}", response_model=GameResponse)
-async def get_game(game_id: UUID):
+        # If no games from SerpAPI, try to fetch from database
+        if date:
+            query = "SELECT * FROM gamedetails WHERE date = %s"
+            result = cassandra_db.session.execute(query, [date])
+        else:
+            today = datetime.now().date()
+            query = "SELECT * FROM gamedetails WHERE date = %s"
+            result = cassandra_db.session.execute(query, [today])
+
+        games = []
+        for row in result:
+            game = {
+                "game_id": str(row.game_id),
+                "date": row.date,
+                "stage": row.stage,
+                "team1_id": str(row.team1_id),
+                "team1_name": row.team1_name,
+                "team1_score": row.team1_score,
+                "team2_id": str(row.team2_id),
+                "team2_name": row.team2_name,
+                "team2_score": row.team2_score,
+                "highlight_video_link": row.highlight_video_link
+            }
+            games.append(game)
+        
+        return games
+    except Exception as e:
+        print(f"Error fetching games: {str(e)}")
+        return []
+
+@router.get("/recent")
+async def get_recent_games():
     """
-    Get details for a specific game
+    Get recent games
     """
-    query = f"""
-        SELECT * FROM gamedetails 
-        WHERE game_id = {game_id}
-        LIMIT 1
-    """
-    
-    result = cassandra_db.session.execute(query)
-    game = result.one()
-    if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
-    return game
+    try:
+        # Fetch recent games from SerpAPI
+        games = await serpapi_service.fetch_games()
+        return games
+    except Exception as e:
+        print(f"Error fetching recent games: {str(e)}")
+        return []
 
 @router.get("/{game_id}/highlights")
-async def get_game_highlights(game_id: UUID):
+async def get_game_highlights(game_id: str):
     """
-    Get highlight video link for a specific game
+    Get highlights for a specific game
     """
-    query = f"""
-        SELECT highlight_video_link FROM gamedetails 
-        WHERE game_id = {game_id}
-        LIMIT 1
-    """
-    
-    result = cassandra_db.session.execute(query)
-    game = result.one()
-    if not game or not game.highlight_video_link:
-        raise HTTPException(status_code=404, detail="Highlights not found")
-    return {"highlight_video_link": game.highlight_video_link}
-
-@router.get("/search")
-async def search_games(
-    team_name: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    stage: Optional[str] = None
-):
-    """
-    Search games with various filters
-    """
-    conditions = []
-    if start_date and end_date:
-        conditions.append(f"date >= '{start_date.date()}' AND date <= '{end_date.date()}'")
-    if team_name:
-        conditions.append(f"(team1_name = '{team_name}' OR team2_name = '{team_name}')")
-    if stage:
-        conditions.append(f"stage = '{stage}'")
-    
-    query = "SELECT * FROM gamedetails"
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-    
-    result = cassandra_db.session.execute(query)
-    return list(result) 
+    try:
+        game_uuid = uuid.UUID(game_id)
+        query = "SELECT highlight_video_link FROM gamedetails WHERE game_id = %s ALLOW FILTERING"
+        result = cassandra_db.session.execute(query, [game_uuid])
+        row = result.one()
+        if row:
+            return {"highlight_video_link": row.highlight_video_link}
+        return {"highlight_video_link": None}
+    except Exception as e:
+        print(f"Error fetching highlights: {str(e)}")
+        return {"highlight_video_link": None} 

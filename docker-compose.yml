@@ -53,7 +53,7 @@ services:
         team2_score int,
         highlight_video_link text,
         PRIMARY KEY ((date), game_id)
-      );
+      ) WITH CLUSTERING ORDER BY (game_id ASC);
       
       CREATE TABLE IF NOT EXISTS teamgames (
         team_id uuid,
@@ -65,7 +65,7 @@ services:
         opponent_score int,
         highlight_video_link text,
         PRIMARY KEY ((team_id), date, game_id)
-      );"'
+      ) WITH CLUSTERING ORDER BY (date DESC, game_id ASC);"'
 
   dgraph-zero:
     image: dgraph/dgraph:latest
